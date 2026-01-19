@@ -419,7 +419,19 @@ if 'show_prompt' not in st.session_state:
 if 'json_input_key' not in st.session_state:
     st.session_state.json_input_key = ""
 
-# ... [Header code omitted as it is unchanged, focusing on fixing the logic below]
+# Centered header
+st.markdown('''
+<div class="turing-header">
+    <div class="turing-title">TURING</div>
+    <div class="turing-subtitle">JSON Compressor</div>
+</div>
+''', unsafe_allow_html=True)
+
+# System prompt button (right-aligned)
+col1, col2, col3 = st.columns([3, 1, 1])
+with col3:
+    if st.button("System Prompt", type="secondary"):
+        st.session_state.show_prompt = not st.session_state.show_prompt
 
 # System prompt section (toggle)
 if st.session_state.show_prompt:

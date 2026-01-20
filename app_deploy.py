@@ -487,7 +487,7 @@ def clear_text():
 # Button row
 col1, col2, col3 = st.columns([2, 1, 2])
 with col1:
-    compress_btn = st.button("Compress JSON", type="primary", use_container_width=True)
+    compress_btn = st.button("Compress & Extract", type="primary", use_container_width=True)
 with col2:
     st.button("Clear", use_container_width=True, on_click=clear_text)
 

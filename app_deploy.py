@@ -446,8 +446,12 @@ st.markdown("""
 # Initialize session state
 if 'show_prompt' not in st.session_state:
     st.session_state.show_prompt = False
-if 'json_input_key' not in st.session_state:
-    st.session_state.json_input_key = ""
+if 'processed_data' not in st.session_state:
+    st.session_state.processed_data = None  # Stores processed results
+if 'original_data' not in st.session_state:
+    st.session_state.original_data = None   # Stores original for screenshot download
+if 'zip_data' not in st.session_state:
+    st.session_state.zip_data = None        # Stores fetched ZIP bytes
 
 # Centered header
 st.markdown('''
@@ -471,7 +475,6 @@ if st.session_state.show_prompt:
     st.divider()
 
 # Main input section
-# We use a key for the text area to allow direct manipulation via session state
 json_input = st.text_area(
     label="Paste your JSON here",
     key="json_input_area",
@@ -480,9 +483,12 @@ json_input = st.text_area(
     label_visibility="collapsed"
 )
 
-# Callback to clear text
+# Callback to clear text and reset state
 def clear_text():
     st.session_state.json_input_area = ""
+    st.session_state.processed_data = None
+    st.session_state.original_data = None
+    st.session_state.zip_data = None
 
 # Button row
 col1, col2, col3 = st.columns([2, 1, 2])
@@ -491,7 +497,7 @@ with col1:
 with col2:
     st.button("Clear", use_container_width=True, on_click=clear_text)
 
-# Process
+# Process on button click - store in session state
 if compress_btn:
     if json_input.strip():
         try:
@@ -504,54 +510,16 @@ if compress_btn:
             # Calculate
             orig_size, min_size, savings = calculate_savings(original_data, compressed_data)
             
-            # Success message
-            st.success("Compressed successfully")
-            
-            # Stats
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Original", f"{orig_size/1024:.1f} KB")
-            with col2:
-                st.metric("Compressed", f"{min_size/1024:.1f} KB")
-            with col3:
-                st.metric("Saved", f"{savings:.1f}%")
-            
-            st.caption(f"Processed {len(compressed_data['events'])} events")
-            
-            # Download JSON
-            compressed_json = json.dumps(compressed_data, indent=2)
-            file_id = compressed_data.get('id', 'output')
-            st.download_button(
-                label="📄 Download Minimal JSON",
-                data=compressed_json,
-                file_name=f"{file_id}.json",
-                mime="application/json",
-                use_container_width=True
-            )
-            
-            # Download Screenshots
-            st.divider()
-            st.subheader("📸 Event Screenshots")
-            
-            if st.button("Fetch & Download Screenshots (ZIP)", type="secondary", use_container_width=True):
-                with st.spinner("Downloading screenshots... This may take a moment."):
-                    zip_bytes, count = download_screenshots_as_zip(original_data)
-                    
-                if count > 0:
-                    st.success(f"Downloaded {count} screenshots!")
-                    st.download_button(
-                        label=f"📥 Download {count} Screenshots (ZIP)",
-                        data=zip_bytes,
-                        file_name=f"{file_id}_screenshots.zip",
-                        mime="application/zip",
-                        use_container_width=True
-                    )
-                else:
-                    st.warning("No screenshots found in the JSON.")
-            
-            # Preview
-            with st.expander("Preview Compressed JSON"):
-                st.json(compressed_data)
+            # Store in session state
+            st.session_state.processed_data = {
+                'compressed': compressed_data,
+                'orig_size': orig_size,
+                'min_size': min_size,
+                'savings': savings,
+                'file_id': compressed_data.get('id', 'output')
+            }
+            st.session_state.original_data = original_data
+            st.session_state.zip_data = None  # Reset ZIP when reprocessing
                 
         except json.JSONDecodeError as e:
             st.error(f"Invalid JSON format: {str(e)}")
@@ -561,6 +529,63 @@ if compress_btn:
             st.error(f"Error processing JSON: {str(e)}")
     else:
         st.warning("Please paste JSON content first")
+
+# Display results from session state (persists across reruns)
+if st.session_state.processed_data:
+    data = st.session_state.processed_data
+    
+    # Success message
+    st.success("Compressed successfully")
+    
+    # Stats
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Original", f"{data['orig_size']/1024:.1f} KB")
+    with col2:
+        st.metric("Compressed", f"{data['min_size']/1024:.1f} KB")
+    with col3:
+        st.metric("Saved", f"{data['savings']:.1f}%")
+    
+    st.caption(f"Processed {len(data['compressed']['events'])} events")
+    
+    # Download JSON
+    compressed_json = json.dumps(data['compressed'], indent=2)
+    st.download_button(
+        label="📄 Download Minimal JSON",
+        data=compressed_json,
+        file_name=f"{data['file_id']}.json",
+        mime="application/json",
+        use_container_width=True
+    )
+    
+    # Download Screenshots section
+    st.divider()
+    st.subheader("📸 Event Screenshots")
+    
+    # Fetch screenshots button
+    if st.button("Fetch & Download Screenshots (ZIP)", type="secondary", use_container_width=True):
+        with st.spinner("Downloading screenshots... This may take a moment."):
+            zip_bytes, count = download_screenshots_as_zip(st.session_state.original_data)
+            if count > 0:
+                st.session_state.zip_data = {'bytes': zip_bytes, 'count': count}
+            else:
+                st.session_state.zip_data = None
+                st.warning("No screenshots found in the JSON.")
+    
+    # Display ZIP download button if available
+    if st.session_state.zip_data:
+        st.success(f"Downloaded {st.session_state.zip_data['count']} screenshots!")
+        st.download_button(
+            label=f"📥 Download {st.session_state.zip_data['count']} Screenshots (ZIP)",
+            data=st.session_state.zip_data['bytes'],
+            file_name=f"{data['file_id']}_screenshots.zip",
+            mime="application/zip",
+            use_container_width=True
+        )
+    
+    # Preview
+    with st.expander("Preview Compressed JSON"):
+        st.json(data['compressed'])
 
 # Privacy notice
 st.markdown('''

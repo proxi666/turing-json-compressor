@@ -6,6 +6,9 @@ Deployment-ready single-file Streamlit application.
 
 import streamlit as st
 import json
+import requests
+import zipfile
+from io import BytesIO
 
 # =============================================================================
 # EMBEDDED SYSTEM PROMPT
@@ -263,6 +266,33 @@ def calculate_savings(original: dict, minimal: dict) -> tuple[int, int, float]:
     return original_size, minimal_size, savings_pct
 
 
+def download_screenshots_as_zip(data: dict) -> tuple[bytes, int]:
+    """Download all 'start' screenshots and return as ZIP bytes."""
+    zip_buffer = BytesIO()
+    downloaded_count = 0
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        events = data.get("events", [])
+        for idx, event in enumerate(events, 1):
+            screenshots = event.get("screenshots", {})
+            start_url = screenshots.get("start")
+            
+            if start_url:
+                try:
+                    response = requests.get(start_url, timeout=30)
+                    response.raise_for_status()
+                    
+                    filename = f"event{idx}.png"
+                    zip_file.writestr(filename, response.content)
+                    downloaded_count += 1
+                except requests.exceptions.RequestException:
+                    # Skip failed downloads silently
+                    pass
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue(), downloaded_count
+
+
 # =============================================================================
 # PAGE CONFIG & STYLES
 # =============================================================================
@@ -488,16 +518,36 @@ if compress_btn:
             
             st.caption(f"Processed {len(compressed_data['events'])} events")
             
-            # Download
+            # Download JSON
             compressed_json = json.dumps(compressed_data, indent=2)
             file_id = compressed_data.get('id', 'output')
             st.download_button(
-                label="Download Minimal JSON",
+                label="📄 Download Minimal JSON",
                 data=compressed_json,
                 file_name=f"{file_id}.json",
                 mime="application/json",
                 use_container_width=True
             )
+            
+            # Download Screenshots
+            st.divider()
+            st.subheader("📸 Event Screenshots")
+            
+            if st.button("Fetch & Download Screenshots (ZIP)", type="secondary", use_container_width=True):
+                with st.spinner("Downloading screenshots... This may take a moment."):
+                    zip_bytes, count = download_screenshots_as_zip(original_data)
+                    
+                if count > 0:
+                    st.success(f"Downloaded {count} screenshots!")
+                    st.download_button(
+                        label=f"📥 Download {count} Screenshots (ZIP)",
+                        data=zip_bytes,
+                        file_name=f"{file_id}_screenshots.zip",
+                        mime="application/zip",
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("No screenshots found in the JSON.")
             
             # Preview
             with st.expander("Preview Compressed JSON"):

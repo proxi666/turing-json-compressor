@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-JSON Compressor - Turing QA Toolkit
+JSON Compressor & Extractor Tool - Turing QA Toolkit
 Deployment-ready single-file Streamlit application.
 """
 
@@ -206,7 +206,7 @@ def download_screenshots_as_zip(data: dict) -> tuple[bytes, int]:
 # =============================================================================
 
 st.set_page_config(
-    page_title="JSON Compressor - Turing QA",
+    page_title="JSON Compressor & Extractor - Turing QA",
     page_icon="📄",
     layout="centered"
 )
@@ -365,7 +365,7 @@ if 'zip_data' not in st.session_state:
 st.markdown('''
 <div class="turing-header">
     <div class="turing-title">TURING</div>
-    <div class="turing-subtitle">JSON Compressor</div>
+    <div class="turing-subtitle">JSON Compressor & Extractor Tool</div>
 </div>
 ''', unsafe_allow_html=True)
 
